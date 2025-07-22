@@ -3,19 +3,18 @@ import os
 import requests
 import bleach
 from datetime import datetime, timedelta
-import sqlite3 # <-- We go back to using the standard sqlite3 library
+import sqlite3
 
 # --- Setup DB ---
-# Connects to your Turso cloud database using the new library
+# Connects to your Turso cloud database
 try:
-    # This format is specific to the turso-sqlite3 library
-    db_url = f"file:{st.secrets['TURSO_DB_URL']}?authToken={st.secrets['TURSO_DB_AUTH_TOKEN']}"
+    # THIS IS THE CORRECTED LINE: The "file:" prefix is removed.
+    db_url = f"{st.secrets['TURSO_DB_URL']}?authToken={st.secrets['TURSO_DB_AUTH_TOKEN']}"
     
-    # The connection logic is now simple again
     conn = sqlite3.connect(db_url, uri=True, check_same_thread=False)
     c = conn.cursor()
     
-    # Run setup queries (these are the same as your original code)
+    # Run setup queries
     c.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +34,6 @@ try:
     st.sidebar.success("Connected to Cloud DB")
 
 except Exception as e:
-    # This will now give a more useful error if credentials are wrong
     st.error(f"Failed to connect to the database: {e}")
     st.stop()
 
@@ -88,7 +86,7 @@ if submitted:
     user_ip = get_ip()
     today = get_current_ist_time().strftime('%Y-%m-%d')
     
-    # Check message limit (back to using c.execute)
+    # Check message limit
     c.execute("SELECT last_message_date FROM user_ips WHERE ip = ?", (user_ip,))
     row = c.fetchone()
     already_sent_today = row and row[0] == today
@@ -106,7 +104,7 @@ if submitted:
                       (clean_name, clean_text, timestamp, user_ip))
         c.execute("INSERT OR REPLACE INTO user_ips (ip, last_message_date) VALUES (?, ?)",
                       (user_ip, today))
-        conn.commit() # We need to commit our changes again
+        conn.commit()
         st.success("Message sent!")
 
 # --- Display Messages with Pagination ---
