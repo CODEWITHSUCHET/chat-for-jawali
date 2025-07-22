@@ -4,9 +4,9 @@ import requests
 import bleach
 from datetime import datetime, timedelta
 from libsql_experimental import connect
+import urllib.parse # Import for URL encoding
 
 # --- DESIGN AND STYLING (CSS) ---
-# This CSS provides a WhatsApp-inspired design with a background image and styled chat bubbles.
 st.markdown("""
 <style>
 /* Main app background */
@@ -14,7 +14,6 @@ st.markdown("""
     background-image: url("https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg");
     background-size: cover;
 }
-
 /* Make the main content area slightly transparent */
 .main .block-container {
     background-color: rgba(255, 255, 255, 0.9); /* White with 90% opacity */
@@ -22,7 +21,6 @@ st.markdown("""
     padding: 2rem;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
-
 /* Individual message bubble with a more distinct shape */
 .chat-bubble {
     background-color: #ffffff; /* White background for bubbles */
@@ -34,7 +32,6 @@ st.markdown("""
     box-shadow: 0 2px 4px rgba(0,0,0,0.08);
     border: 1px solid #e9e9e9;
 }
-
 /* User avatar image */
 .chat-avatar {
     width: 45px;
@@ -44,28 +41,32 @@ st.markdown("""
     border: 2px solid #fff;
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
-
 /* Row containing avatar and bubble */
 .chat-row {
     display: flex;
     align-items: flex-start;
     margin-bottom: 15px;
 }
-
 /* User name style */
 .chat-name {
     font-weight: bold;
     font-size: 1rem;
     margin-bottom: 4px;
-    color: #0d6efd; /* A nice blue for the name */
+    color: #0d6efd;
 }
-
 /* Timestamp style - subtle and at the bottom */
 .chat-timestamp {
     font-size: 0.75rem;
     color: #6c757d;
-    text-align: right; /* Aligns timestamp to the right within the bubble */
+    text-align: right;
     margin-top: 8px;
+}
+/* Footer style */
+.footer {
+    text-align: center;
+    padding-top: 2rem;
+    color: gray;
+    font-size: 0.9rem;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -129,7 +130,7 @@ with st.sidebar:
 
 # --- Main App Area ---
 st.title("💬 Chat for Jawali")
-st.write("") # Add a little space
+st.write("") 
 
 # --- User Info Form ---
 with st.form("chat_form", clear_on_submit=True):
@@ -165,9 +166,10 @@ if not messages and st.session_state.page == 0:
     st.info("No messages yet. Be the first to post!")
 else:
     for name, text, timestamp in messages:
-        # The image '1.png' is used as the avatar here. 
-        # The URL points to where Streamlit hosts the static file.
-        avatar_url = "https://chat-for-jawali.streamlit.app/app/static/1.png"
+        # ** NEW ** Create a dynamic avatar URL based on the user's name
+        name_for_avatar = urllib.parse.quote_plus(name)
+        avatar_url = f"https://ui-avatars.com/api/?name={name_for_avatar}&background=random&color=fff"
+        
         chat_html = f"""
         <div class="chat-row">
             <img src="{avatar_url}" class="chat-avatar">
@@ -181,7 +183,7 @@ else:
         st.markdown(chat_html, unsafe_allow_html=True)
 
 # --- Pagination ---
-st.write("") # Spacer
+st.write("") 
 col1, col2 = st.columns(2)
 with col1:
     if st.session_state.page > 0:
@@ -196,6 +198,11 @@ with col2:
         if st.button("Next Page ➡️"):
             st.session_state.page += 1
             st.rerun()
+
+# --- NEW FOOTER SECTION ---
+st.divider()
+st.markdown("<div class='footer'>CODEMONK BY STAYMONK</div>", unsafe_allow_html=True)
+
 
 # --- Admin Tools ---
 if st.session_state.admin_logged_in:
