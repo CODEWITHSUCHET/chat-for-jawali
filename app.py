@@ -11,19 +11,17 @@ st.markdown("""
 <style>
 /* Main app background */
 [data-testid="stAppViewContainer"] {
-    /* THIS LINE IS UPDATED with a new, high-quality background image URL */
     background-image: url("https://www.transparenttextures.com/patterns/cubes.png");
-    background-color: #f0f2f5; /* A light fallback color */
+    background-color: #f0f2f5; 
 }
-
 /* Make the main content area slightly transparent */
 .main .block-container {
-    background-color: rgba(255, 255, 255, 0.95); /* White with 95% opacity */
+    background-color: rgba(255, 255, 255, 0.95);
     border-radius: 20px;
     padding: 2rem;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
-/* Individual message bubble with a more distinct shape */
+/* Individual message bubble */
 .chat-bubble {
     background-color: #ffffff;
     border-radius: 15px;
@@ -56,7 +54,7 @@ st.markdown("""
     margin-bottom: 4px;
     color: #0d6efd;
 }
-/* Timestamp style - subtle and at the bottom */
+/* Timestamp style */
 .chat-timestamp {
     font-size: 0.75rem;
     color: #6c757d;
@@ -202,7 +200,8 @@ with col2:
 
 # --- Footer ---
 st.divider()
-st.markdown("<div class='footer'>CODEMONK BY STAYMONK</div>", unsafe_allow_html=True)
+# THIS IS THE CHANGED LINE
+st.markdown("<div class='footer'>Crafted with ❤️ in Jawali by CODEMONK</div>", unsafe_allow_html=True)
 
 
 # --- Admin Tools ---
