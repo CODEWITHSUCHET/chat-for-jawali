@@ -3,16 +3,16 @@ import os
 import requests
 import bleach
 from datetime import datetime, timedelta
-import sqlite3
+# THIS IS THE KEY CHANGE: We import 'connect' directly from the new library
+from libsql_experimental import connect
 
 # --- Setup DB ---
 # Connects to your Turso cloud database
 try:
     # THIS IS THE FINAL, CORRECTED CONNECTION METHOD
-    conn = sqlite3.connect(
+    conn = connect(
         st.secrets["TURSO_DB_URL"],
-        auth_token=st.secrets["TURSO_DB_AUTH_TOKEN"],
-        check_same_thread=False
+        auth_token=st.secrets["TURSO_DB_AUTH_TOKEN"]
     )
     c = conn.cursor()
     
@@ -108,6 +108,7 @@ if submitted:
                       (user_ip, today))
         conn.commit()
         st.success("Message sent!")
+        st.rerun()
 
 # --- Display Messages with Pagination ---
 st.markdown("### 📜 Chat History")
