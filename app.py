@@ -4,9 +4,10 @@ import requests
 import bleach
 from datetime import datetime, timedelta
 from libsql_experimental import connect
+import pandas as pd  # Import Pandas for data handling
+import altair as alt # Import Altair for charting
 
 # --- DESIGN AND STYLING (CSS) ---
-# This is a block of CSS that will be injected into the page to improve the design.
 st.markdown("""
 <style>
 /* Center the main content */
@@ -15,38 +16,34 @@ st.markdown("""
     padding-top: 2rem;
     padding-bottom: 2rem;
 }
-
 /* Style the title */
 h1 {
     text-align: center;
-    color: #4A4A4A; /* Dark gray color */
+    color: #4A4A4A;
 }
-
 /* Style the image/logo */
 .stImage {
     margin: auto;
-    width: 250px; /* Control the size of the logo */
+    width: 250px;
 }
-
 /* Style the chat history container */
 [data-testid="stVerticalBlock"] > [data-testid="stMarkdownContainer"] {
-    background-color: #f0f2f6; /* Light gray background */
+    background-color: #f0f2f6;
     border-radius: 10px;
     padding: 1rem 1.5rem;
     margin-bottom: 1rem;
     border: 1px solid #e6e6e6;
 }
-
 /* Style the Send button */
 .stButton>button {
     width: 100%;
     border: none;
-    background-color: #007bff; /* Blue color */
+    background-color: #007bff;
     color: white;
     border-radius: 5px;
 }
 .stButton>button:hover {
-    background-color: #0056b3; /* Darker blue on hover */
+    background-color: #0056b3;
     color: white;
 }
 </style>
@@ -54,15 +51,12 @@ h1 {
 
 
 # --- Setup DB ---
-# Connects to your Turso cloud database
 try:
     conn = connect(
         st.secrets["TURSO_DB_URL"],
         auth_token=st.secrets["TURSO_DB_AUTH_TOKEN"]
     )
     c = conn.cursor()
-    
-    # Run setup queries
     c.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,30 +73,25 @@ except Exception as e:
     st.error(f"Failed to connect to the database: {e}")
     st.stop()
 
-# --- (INDIA VALA TIME ) ---
+# --- Functions ---
 def get_current_ist_time():
     return datetime.utcnow() + timedelta(hours=5, minutes=30)
 
-# --- Get user IP ---
 def get_ip():
     try:
         return requests.get('https://api64.ipify.org', timeout=5).text
     except requests.exceptions.RequestException:
         return "127.0.0.1"
 
-# --- Admin ---
-ADMIN_PASSWORD = os.getenv("ADMIN_PASS", st.secrets.get("ADMIN_PASS"))
+# --- Session State ---
 if "admin_logged_in" not in st.session_state:
     st.session_state.admin_logged_in = False
-
-# --- Pagination State ---
 if "page" not in st.session_state:
     st.session_state.page = 0
 
 # --- Streamlit Page ---
 st.set_page_config(page_title="Chat for Jawali", page_icon="💬")
 st.title("💬 Chat for Jawali")
-
 st.image("1.png") 
 
 # --- Admin Sidebar ---
@@ -110,7 +99,7 @@ with st.sidebar:
     st.header("Admin Login")
     password = st.text_input("Enter admin password", type="password", key="admin_password")
     if st.button("Login"):
-        if password == ADMIN_PASSWORD:
+        if password == st.secrets.get("ADMIN_PASS"):
             st.session_state.admin_logged_in = True
             st.rerun()
         else:
@@ -120,7 +109,34 @@ with st.sidebar:
             st.session_state.admin_logged_in = False
             st.rerun()
 
-# --- User Info ---
+# --- NEW GRAPHICS SECTION ---
+with st.expander("📊 View Chat Activity"):
+    try:
+        # Query the database to get message counts per day
+        query = "SELECT DATE(timestamp) as date, COUNT(id) as message_count FROM messages GROUP BY DATE(timestamp) ORDER BY date"
+        activity_df = pd.read_sql_query(query, conn)
+        
+        if not activity_df.empty:
+            st.write("#### Messages Per Day")
+            
+            # Create a bar chart with Altair
+            chart = alt.Chart(activity_df).mark_bar().encode(
+                x=alt.X('date:T', title='Date'),
+                y=alt.Y('message_count:Q', title='Number of Messages'),
+                tooltip=['date:T', 'message_count:Q']
+            ).properties(
+                title='Daily Message Volume'
+            )
+            
+            st.altair_chart(chart, use_container_width=True)
+        else:
+            st.info("Not enough data to display a chart yet.")
+            
+    except Exception as e:
+        st.warning(f"Could not load chart: {e}")
+
+
+# --- User Info Form ---
 with st.form("chat_form", clear_on_submit=True):
     name = st.text_input("Your Name")
     text = st.text_area("Message")
@@ -141,9 +157,9 @@ if submitted:
         st.success("Message sent!")
         st.rerun()
 
-st.divider() # Adds a nice horizontal line
+st.divider()
 
-# --- Display Messages with Pagination ---
+# --- Display Messages ---
 st.markdown("### 📜 Chat History")
 MESSAGES_PER_PAGE = 25
 offset = st.session_state.page * MESSAGES_PER_PAGE
