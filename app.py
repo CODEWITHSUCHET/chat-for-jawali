@@ -5,6 +5,54 @@ import bleach
 from datetime import datetime, timedelta
 from libsql_experimental import connect
 
+# --- DESIGN AND STYLING (CSS) ---
+# This is a block of CSS that will be injected into the page to improve the design.
+st.markdown("""
+<style>
+/* Center the main content */
+.main .block-container {
+    max-width: 800px;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+/* Style the title */
+h1 {
+    text-align: center;
+    color: #4A4A4A; /* Dark gray color */
+}
+
+/* Style the image/logo */
+.stImage {
+    margin: auto;
+    width: 250px; /* Control the size of the logo */
+}
+
+/* Style the chat history container */
+[data-testid="stVerticalBlock"] > [data-testid="stMarkdownContainer"] {
+    background-color: #f0f2f6; /* Light gray background */
+    border-radius: 10px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #e6e6e6;
+}
+
+/* Style the Send button */
+.stButton>button {
+    width: 100%;
+    border: none;
+    background-color: #007bff; /* Blue color */
+    color: white;
+    border-radius: 5px;
+}
+.stButton>button:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+    color: white;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 # --- Setup DB ---
 # Connects to your Turso cloud database
 try:
@@ -55,7 +103,6 @@ if "page" not in st.session_state:
 st.set_page_config(page_title="Chat for Jawali", page_icon="💬")
 st.title("💬 Chat for Jawali")
 
-# THIS IS THE NEW LINE TO ADD THE LOGO
 st.image("1.png") 
 
 # --- Admin Sidebar ---
@@ -93,6 +140,8 @@ if submitted:
         conn.commit()
         st.success("Message sent!")
         st.rerun()
+
+st.divider() # Adds a nice horizontal line
 
 # --- Display Messages with Pagination ---
 st.markdown("### 📜 Chat History")
