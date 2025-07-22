@@ -14,7 +14,7 @@ try:
     )
     c = conn.cursor()
     
-    # Run setup queries (user_ips table is removed)
+    # Run setup queries
     c.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,6 +55,9 @@ if "page" not in st.session_state:
 st.set_page_config(page_title="Chat for Jawali", page_icon="💬")
 st.title("💬 Chat for Jawali")
 
+# THIS IS THE NEW LINE TO ADD THE LOGO
+st.image("1.png") 
+
 # --- Admin Sidebar ---
 with st.sidebar:
     st.header("Admin Login")
@@ -77,7 +80,6 @@ with st.form("chat_form", clear_on_submit=True):
     submitted = st.form_submit_button("Send")
 
 if submitted:
-    # The check for the daily limit has been removed.
     if not name.strip() or not text.strip():
         st.warning("Name and message cannot be empty.")
     else:
@@ -86,7 +88,6 @@ if submitted:
         clean_text = bleach.clean(text.strip())
         timestamp = get_current_ist_time().strftime('%Y-%m-%d %H:%M:%S')
 
-        # We removed the query to the user_ips table.
         c.execute("INSERT INTO messages (name, text, timestamp, ip) VALUES (?, ?, ?, ?)",
                       (clean_name, clean_text, timestamp, user_ip))
         conn.commit()
@@ -118,7 +119,6 @@ with col1:
             st.rerun()
 with col2:
     c.execute("SELECT COUNT(id) FROM messages")
-    # Add a check to ensure fetchone() does not return None
     count_result = c.fetchone()
     total_messages = count_result[0] if count_result else 0
     if total_messages > (st.session_state.page + 1) * MESSAGES_PER_PAGE:
@@ -150,7 +150,6 @@ if st.session_state.admin_logged_in:
     st.subheader("🚨 Danger Zone")
     if st.button("Delete ALL Messages"):
         c.execute("DELETE FROM messages")
-        # The user_ips table is no longer used, but we can leave this for safety
         c.execute("DELETE FROM user_ips") 
         conn.commit()
         st.success("All messages have been deleted.")
