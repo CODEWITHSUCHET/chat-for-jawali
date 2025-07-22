@@ -4,47 +4,68 @@ import requests
 import bleach
 from datetime import datetime, timedelta
 from libsql_experimental import connect
-import pandas as pd  # Import Pandas for data handling
-import altair as alt # Import Altair for charting
 
 # --- DESIGN AND STYLING (CSS) ---
+# This CSS provides a WhatsApp-inspired design with a background image and styled chat bubbles.
 st.markdown("""
 <style>
-/* Center the main content */
+/* Main app background */
+[data-testid="stAppViewContainer"] {
+    background-image: url("https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg");
+    background-size: cover;
+}
+
+/* Make the main content area slightly transparent */
 .main .block-container {
-    max-width: 800px;
-    padding-top: 2rem;
-    padding-bottom: 2rem;
+    background-color: rgba(255, 255, 255, 0.9); /* White with 90% opacity */
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
-/* Style the title */
-h1 {
-    text-align: center;
-    color: #4A4A4A;
+
+/* Individual message bubble with a more distinct shape */
+.chat-bubble {
+    background-color: #ffffff; /* White background for bubbles */
+    border-radius: 15px;
+    padding: 12px 18px;
+    max-width: 80%;
+    align-self: flex-start;
+    word-wrap: break-word;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    border: 1px solid #e9e9e9;
 }
-/* Style the image/logo */
-.stImage {
-    margin: auto;
-    width: 250px;
+
+/* User avatar image */
+.chat-avatar {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    margin-right: 12px;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
-/* Style the chat history container */
-[data-testid="stVerticalBlock"] > [data-testid="stMarkdownContainer"] {
-    background-color: #f0f2f6;
-    border-radius: 10px;
-    padding: 1rem 1.5rem;
-    margin-bottom: 1rem;
-    border: 1px solid #e6e6e6;
+
+/* Row containing avatar and bubble */
+.chat-row {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 15px;
 }
-/* Style the Send button */
-.stButton>button {
-    width: 100%;
-    border: none;
-    background-color: #007bff;
-    color: white;
-    border-radius: 5px;
+
+/* User name style */
+.chat-name {
+    font-weight: bold;
+    font-size: 1rem;
+    margin-bottom: 4px;
+    color: #0d6efd; /* A nice blue for the name */
 }
-.stButton>button:hover {
-    background-color: #0056b3;
-    color: white;
+
+/* Timestamp style - subtle and at the bottom */
+.chat-timestamp {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-align: right; /* Aligns timestamp to the right within the bubble */
+    margin-top: 8px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -68,7 +89,6 @@ try:
     ''')
     conn.commit()
     st.sidebar.success("Connected to Cloud DB")
-
 except Exception as e:
     st.error(f"Failed to connect to the database: {e}")
     st.stop()
@@ -91,8 +111,6 @@ if "page" not in st.session_state:
 
 # --- Streamlit Page ---
 st.set_page_config(page_title="Chat for Jawali", page_icon="💬")
-st.title("💬 Chat for Jawali")
-st.image("1.png") 
 
 # --- Admin Sidebar ---
 with st.sidebar:
@@ -109,38 +127,15 @@ with st.sidebar:
             st.session_state.admin_logged_in = False
             st.rerun()
 
-# --- NEW GRAPHICS SECTION ---
-with st.expander("📊 View Chat Activity"):
-    try:
-        # Query the database to get message counts per day
-        query = "SELECT DATE(timestamp) as date, COUNT(id) as message_count FROM messages GROUP BY DATE(timestamp) ORDER BY date"
-        activity_df = pd.read_sql_query(query, conn)
-        
-        if not activity_df.empty:
-            st.write("#### Messages Per Day")
-            
-            # Create a bar chart with Altair
-            chart = alt.Chart(activity_df).mark_bar().encode(
-                x=alt.X('date:T', title='Date'),
-                y=alt.Y('message_count:Q', title='Number of Messages'),
-                tooltip=['date:T', 'message_count:Q']
-            ).properties(
-                title='Daily Message Volume'
-            )
-            
-            st.altair_chart(chart, use_container_width=True)
-        else:
-            st.info("Not enough data to display a chart yet.")
-            
-    except Exception as e:
-        st.warning(f"Could not load chart: {e}")
-
+# --- Main App Area ---
+st.title("💬 Chat for Jawali")
+st.write("") # Add a little space
 
 # --- User Info Form ---
 with st.form("chat_form", clear_on_submit=True):
-    name = st.text_input("Your Name")
-    text = st.text_area("Message")
-    submitted = st.form_submit_button("Send")
+    name = st.text_input("Your Name", placeholder="Enter your name...")
+    text = st.text_area("Message", placeholder="Type your message here...")
+    submitted = st.form_submit_button("Send Message")
 
 if submitted:
     if not name.strip() or not text.strip():
@@ -150,20 +145,17 @@ if submitted:
         clean_name = bleach.clean(name.strip())
         clean_text = bleach.clean(text.strip())
         timestamp = get_current_ist_time().strftime('%Y-%m-%d %H:%M:%S')
-
         c.execute("INSERT INTO messages (name, text, timestamp, ip) VALUES (?, ?, ?, ?)",
                       (clean_name, clean_text, timestamp, user_ip))
         conn.commit()
-        st.success("Message sent!")
         st.rerun()
 
 st.divider()
 
-# --- Display Messages ---
-st.markdown("### 📜 Chat History")
+# --- Display Messages with new design ---
+st.markdown("### Chat History")
 MESSAGES_PER_PAGE = 25
 offset = st.session_state.page * MESSAGES_PER_PAGE
-
 messages = c.execute(
     "SELECT name, text, timestamp FROM messages ORDER BY id DESC LIMIT ? OFFSET ?",
     (MESSAGES_PER_PAGE, offset)
@@ -173,9 +165,23 @@ if not messages and st.session_state.page == 0:
     st.info("No messages yet. Be the first to post!")
 else:
     for name, text, timestamp in messages:
-        st.markdown(f"**{name}**: {text} _(at {timestamp})_")
+        # The image '1.png' is used as the avatar here. 
+        # The URL points to where Streamlit hosts the static file.
+        avatar_url = "https://chat-for-jawali.streamlit.app/app/static/1.png"
+        chat_html = f"""
+        <div class="chat-row">
+            <img src="{avatar_url}" class="chat-avatar">
+            <div class="chat-bubble">
+                <div class="chat-name">{name}</div>
+                <div>{text}</div>
+                <div class="chat-timestamp">{timestamp}</div>
+            </div>
+        </div>
+        """
+        st.markdown(chat_html, unsafe_allow_html=True)
 
-# Pagination buttons
+# --- Pagination ---
+st.write("") # Spacer
 col1, col2 = st.columns(2)
 with col1:
     if st.session_state.page > 0:
@@ -193,29 +199,26 @@ with col2:
 
 # --- Admin Tools ---
 if st.session_state.admin_logged_in:
-    st.markdown("---")
-    st.markdown("### 👮 Admin Tools")
-
-    st.subheader("Delete Individual Messages")
-    admin_messages = c.execute(
-        "SELECT id, name, text, timestamp, ip FROM messages ORDER BY id DESC LIMIT ? OFFSET ?",
-        (MESSAGES_PER_PAGE, offset)
-    ).fetchall()
-
-    for msg_id, name, text, timestamp, ip in admin_messages:
-        with st.expander(f"ID: {msg_id} | User: {name} | IP: {ip}"):
-            st.write(f"_{timestamp}_")
-            st.text(text)
-            if st.button(f"Delete Message ID {msg_id}", key=f"delete_{msg_id}"):
-                c.execute("DELETE FROM messages WHERE id = ?", (msg_id,))
-                conn.commit()
-                st.success(f"Deleted message ID {msg_id}")
-                st.rerun()
-
-    st.subheader("🚨 Danger Zone")
-    if st.button("Delete ALL Messages"):
-        c.execute("DELETE FROM messages")
-        c.execute("DELETE FROM user_ips") 
-        conn.commit()
-        st.success("All messages have been deleted.")
-        st.rerun()
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 👮 Admin Tools")
+        st.subheader("Delete Individual Messages")
+        admin_messages = c.execute(
+            "SELECT id, name, text, timestamp, ip FROM messages ORDER BY id DESC LIMIT ? OFFSET ?",
+            (MESSAGES_PER_PAGE, offset)
+        ).fetchall()
+        for msg_id, name, text, timestamp, ip in admin_messages:
+            with st.expander(f"ID: {msg_id} | User: {name} | IP: {ip}"):
+                st.write(f"_{timestamp}_")
+                st.text(text)
+                if st.button(f"Delete Message ID {msg_id}", key=f"delete_{msg_id}"):
+                    c.execute("DELETE FROM messages WHERE id = ?", (msg_id,))
+                    conn.commit()
+                    st.success(f"Deleted message ID {msg_id}")
+                    st.rerun()
+        st.subheader("🚨 Danger Zone")
+        if st.button("Delete ALL Messages"):
+            c.execute("DELETE FROM messages")
+            conn.commit()
+            st.success("All messages have been deleted.")
+            st.rerun()
