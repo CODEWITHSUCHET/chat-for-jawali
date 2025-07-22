@@ -2,3 +2,5 @@ streamlit
 requests
 bleach
 libsql-experimental
+pandas
+altair
