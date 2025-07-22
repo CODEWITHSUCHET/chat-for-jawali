@@ -3,20 +3,18 @@ import os
 import requests
 import bleach
 from datetime import datetime, timedelta
-# THIS IS THE KEY CHANGE: We import 'connect' directly from the new library
 from libsql_experimental import connect
 
 # --- Setup DB ---
 # Connects to your Turso cloud database
 try:
-    # THIS IS THE FINAL, CORRECTED CONNECTION METHOD
     conn = connect(
         st.secrets["TURSO_DB_URL"],
         auth_token=st.secrets["TURSO_DB_AUTH_TOKEN"]
     )
     c = conn.cursor()
     
-    # Run setup queries
+    # Run setup queries (user_ips table is removed)
     c.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,12 +22,6 @@ try:
             text TEXT,
             timestamp TEXT,
             ip TEXT
-        )
-    ''')
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS user_ips (
-            ip TEXT PRIMARY KEY,
-            last_message_date TEXT
         )
     ''')
     conn.commit()
@@ -85,27 +77,18 @@ with st.form("chat_form", clear_on_submit=True):
     submitted = st.form_submit_button("Send")
 
 if submitted:
-    user_ip = get_ip()
-    today = get_current_ist_time().strftime('%Y-%m-%d')
-    
-    # Check message limit
-    c.execute("SELECT last_message_date FROM user_ips WHERE ip = ?", (user_ip,))
-    row = c.fetchone()
-    already_sent_today = row and row[0] == today
-
+    # The check for the daily limit has been removed.
     if not name.strip() or not text.strip():
         st.warning("Name and message cannot be empty.")
-    elif already_sent_today:
-        st.error("You can only send 1 message per day from this IP.")
     else:
+        user_ip = get_ip()
         clean_name = bleach.clean(name.strip())
         clean_text = bleach.clean(text.strip())
         timestamp = get_current_ist_time().strftime('%Y-%m-%d %H:%M:%S')
 
+        # We removed the query to the user_ips table.
         c.execute("INSERT INTO messages (name, text, timestamp, ip) VALUES (?, ?, ?, ?)",
                       (clean_name, clean_text, timestamp, user_ip))
-        c.execute("INSERT OR REPLACE INTO user_ips (ip, last_message_date) VALUES (?, ?)",
-                      (user_ip, today))
         conn.commit()
         st.success("Message sent!")
         st.rerun()
@@ -135,7 +118,9 @@ with col1:
             st.rerun()
 with col2:
     c.execute("SELECT COUNT(id) FROM messages")
-    total_messages = c.fetchone()[0]
+    # Add a check to ensure fetchone() does not return None
+    count_result = c.fetchone()
+    total_messages = count_result[0] if count_result else 0
     if total_messages > (st.session_state.page + 1) * MESSAGES_PER_PAGE:
         if st.button("Next Page ➡️"):
             st.session_state.page += 1
@@ -165,7 +150,8 @@ if st.session_state.admin_logged_in:
     st.subheader("🚨 Danger Zone")
     if st.button("Delete ALL Messages"):
         c.execute("DELETE FROM messages")
-        c.execute("DELETE FROM user_ips")
+        # The user_ips table is no longer used, but we can leave this for safety
+        c.execute("DELETE FROM user_ips") 
         conn.commit()
-        st.success("All messages and IP records have been deleted.")
+        st.success("All messages have been deleted.")
         st.rerun()
