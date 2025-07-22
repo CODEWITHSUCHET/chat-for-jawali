@@ -4,26 +4,28 @@ import requests
 import bleach
 from datetime import datetime, timedelta
 from libsql_experimental import connect
-import urllib.parse # Import for URL encoding
+import urllib.parse
 
 # --- DESIGN AND STYLING (CSS) ---
 st.markdown("""
 <style>
 /* Main app background */
 [data-testid="stAppViewContainer"] {
-    background-image: url("https://i.pinimg.com/736x/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg");
-    background-size: cover;
+    /* THIS LINE IS UPDATED with a new, high-quality background image URL */
+    background-image: url("https://www.transparenttextures.com/patterns/cubes.png");
+    background-color: #f0f2f5; /* A light fallback color */
 }
+
 /* Make the main content area slightly transparent */
 .main .block-container {
-    background-color: rgba(255, 255, 255, 0.9); /* White with 90% opacity */
+    background-color: rgba(255, 255, 255, 0.95); /* White with 95% opacity */
     border-radius: 20px;
     padding: 2rem;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 /* Individual message bubble with a more distinct shape */
 .chat-bubble {
-    background-color: #ffffff; /* White background for bubbles */
+    background-color: #ffffff;
     border-radius: 15px;
     padding: 12px 18px;
     max-width: 80%;
@@ -166,9 +168,8 @@ if not messages and st.session_state.page == 0:
     st.info("No messages yet. Be the first to post!")
 else:
     for name, text, timestamp in messages:
-        # ** NEW ** Create a dynamic avatar URL based on the user's name
         name_for_avatar = urllib.parse.quote_plus(name)
-        avatar_url = f"https://ui-avatars.com/api/?name={name_for_avatar}&background=random&color=fff"
+        avatar_url = f"https://ui-avatars.com/api/?name={name_for_avatar}&background=random&color=fff&size=128"
         
         chat_html = f"""
         <div class="chat-row">
@@ -199,7 +200,7 @@ with col2:
             st.session_state.page += 1
             st.rerun()
 
-# --- NEW FOOTER SECTION ---
+# --- Footer ---
 st.divider()
 st.markdown("<div class='footer'>CODEMONK BY STAYMONK</div>", unsafe_allow_html=True)
 
