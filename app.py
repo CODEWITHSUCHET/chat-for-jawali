@@ -30,27 +30,32 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- NEW FUNCTION TO DELETE OLD DATA ---
+# --- NEW FUNCTION TO UPDATE DATABASE SCHEMA ---
+def update_db_schema(conn):
+    try:
+        c = conn.cursor()
+        # Check if the 'file_url' column exists
+        c.execute("PRAGMA table_info(messages)")
+        columns = [info[1] for info in c.fetchall()]
+        if 'file_url' not in columns:
+            # If it doesn't exist, add it.
+            c.execute("ALTER TABLE messages ADD COLUMN file_url TEXT")
+            conn.commit()
+            print("Database schema updated: 'file_url' column added.")
+    except Exception as e:
+        print(f"Error updating database schema: {e}")
+
+# --- FUNCTION TO DELETE OLD DATA ---
 def delete_old_data(conn):
     try:
-        # Calculate the cutoff date (15 days ago)
         cutoff_date = datetime.utcnow() - timedelta(days=15)
         cutoff_date_str = cutoff_date.strftime('%Y-%m-%d %H:%M:%S')
-
-        # Create a cursor
         c = conn.cursor()
-        
-        # Execute the delete query
         c.execute("DELETE FROM messages WHERE timestamp < ?", (cutoff_date_str,))
-        
-        # Get the number of deleted rows
         deleted_rows = c.rowcount
         conn.commit()
-        
-        # Optionally show a message in the server logs (not visible in the app)
         if deleted_rows > 0:
             print(f"Successfully deleted {deleted_rows} old messages.")
-
     except Exception as e:
         print(f"Error deleting old data: {e}")
 
@@ -62,6 +67,9 @@ try:
         auth_token=st.secrets["TURSO_DB_AUTH_TOKEN"]
     )
     c = conn.cursor()
+    
+    # --- Update schema and create table on startup ---
+    update_db_schema(conn) # Ensures 'file_url' column exists
     c.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,11 +81,9 @@ try:
         )
     ''')
     conn.commit()
-    
-    # --- Call the new delete function on startup ---
-    delete_old_data(conn)
-    
+    delete_old_data(conn) # Deletes messages older than 15 days
     st.sidebar.success("Connected to Cloud DB")
+
 except Exception as e:
     st.error(f"Failed to connect to the database: {e}")
     st.stop()
@@ -130,7 +136,6 @@ if submitted:
     else:
         file_url = None
         if uploaded_file is not None:
-            # This requires Cloudinary to be configured in secrets
             try:
                 import cloudinary
                 import cloudinary.uploader
