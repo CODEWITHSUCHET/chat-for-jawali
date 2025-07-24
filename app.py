@@ -101,26 +101,30 @@ st.write("")
 # --- User Info Form ---
 with st.form("chat_form", clear_on_submit=True):
     name = st.text_input("Your Name", placeholder="Enter your name...")
-    text = st.text_area("Message", placeholder="Type a message (optional)...")
-    # ** CHANGED ** Updated the label to reflect the 200 MB limit
-    uploaded_file = st.file_uploader("Upload a photo or video (Max 200 MB)", type=['png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi'])
+    text = st.text_area("Message", placeholder="Add a caption to your files (optional)...")
+    # ** CHANGED ** Added accept_multiple_files=True
+    uploaded_files = st.file_uploader("Upload photos or videos (Max 200 MB each)", 
+                                      type=['png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi'],
+                                      accept_multiple_files=True)
     submitted = st.form_submit_button("Send Message")
 
 if submitted:
-    if (not name.strip()) or (not text.strip() and not uploaded_file):
-        st.warning("Please provide a name and either a message or a file.")
+    if (not name.strip()) or (not text.strip() and not uploaded_files):
+        st.warning("Please provide a name and either a message or some files.")
     else:
-        file_url = None
-        proceed_with_upload = True
+        clean_name = bleach.clean(name.strip())
+        clean_text = bleach.clean(text.strip())
+        user_ip = get_ip()
         
-        if uploaded_file is not None:
-            # ** CHANGED ** Updated the max file size variable to 200
-            MAX_FILE_SIZE_MB = 200
-            if uploaded_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
-                st.error(f"File is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
-                proceed_with_upload = False
-            
-            if proceed_with_upload:
+        # ** CHANGED ** Logic now handles a list of files.
+        files_processed = False
+        if uploaded_files:
+            for uploaded_file in uploaded_files:
+                MAX_FILE_SIZE_MB = 200
+                if uploaded_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
+                    st.error(f"File '{uploaded_file.name}' is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
+                    continue # Skip this file and go to the next one
+
                 try:
                     import cloudinary
                     import cloudinary.uploader
@@ -133,19 +137,26 @@ if submitted:
                     resource_type = "image" if uploaded_file.type.startswith('image/') else "video"
                     upload_result = cloudinary.uploader.upload(uploaded_file, resource_type=resource_type)
                     file_url = upload_result.get('secure_url')
-                except Exception as e:
-                    st.error(f"Error uploading file: {e}")
-                    proceed_with_upload = False
+                    
+                    # Insert a separate message for each file
+                    timestamp = get_current_ist_time().strftime('%Y-%m-%d %H:%M:%S')
+                    c.execute("INSERT INTO messages (name, text, timestamp, ip, file_url) VALUES (?, ?, ?, ?, ?)",
+                                  (clean_name, clean_text, timestamp, user_ip, file_url))
+                    conn.commit()
+                    files_processed = True
 
-        if proceed_with_upload:
-            user_ip = get_ip()
-            clean_name = bleach.clean(name.strip())
-            clean_text = bleach.clean(text.strip())
-            timestamp = get_current_ist_time().strftime('%Y-%m-%d %H:%M:%S')
-            
-            c.execute("INSERT INTO messages (name, text, timestamp, ip, file_url) VALUES (?, ?, ?, ?, ?)",
-                          (clean_name, clean_text, timestamp, user_ip, file_url))
-            conn.commit()
+                except Exception as e:
+                    st.error(f"Error uploading file '{uploaded_file.name}': {e}")
+        
+        # If the user only sent text without any files
+        elif text.strip() and not uploaded_files:
+             timestamp = get_current_ist_time().strftime('%Y-%m-%d %H:%M:%S')
+             c.execute("INSERT INTO messages (name, text, timestamp, ip, file_url) VALUES (?, ?, ?, ?, ?)",
+                          (clean_name, clean_text, timestamp, user_ip, None))
+             conn.commit()
+             files_processed = True
+
+        if files_processed:
             st.rerun()
 
 st.divider()
