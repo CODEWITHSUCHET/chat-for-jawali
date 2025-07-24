@@ -4,3 +4,4 @@ bleach
 libsql-experimental
 pandas
 altair
+cloudinary
