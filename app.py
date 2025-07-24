@@ -20,6 +20,9 @@ st.markdown("""
     padding: 2rem;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
+[data-testid="stFileUploader"] p {
+    display: none;
+}
 .chat-bubble { background-color: #ffffff; border-radius: 15px; padding: 12px 18px; max-width: 80%; align-self: flex-start; word-wrap: break-word; box-shadow: 0 2px 4px rgba(0,0,0,0.08); border: 1px solid #e9e9e9; }
 .chat-avatar { width: 45px; height: 45px; border-radius: 50%; margin-right: 12px; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
 .chat-row { display: flex; align-items: flex-start; margin-bottom: 15px; }
@@ -99,7 +102,8 @@ st.write("")
 with st.form("chat_form", clear_on_submit=True):
     name = st.text_input("Your Name", placeholder="Enter your name...")
     text = st.text_area("Message", placeholder="Type a message (optional)...")
-    uploaded_file = st.file_uploader("Upload a photo or video (Max 30 MB)", type=['png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi'])
+    # ** CHANGED ** Updated the label to reflect the 200 MB limit
+    uploaded_file = st.file_uploader("Upload a photo or video (Max 200 MB)", type=['png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi'])
     submitted = st.form_submit_button("Send Message")
 
 if submitted:
@@ -110,11 +114,11 @@ if submitted:
         proceed_with_upload = True
         
         if uploaded_file is not None:
-            # ** NEW ** Check the file size before uploading
-            MAX_FILE_SIZE_MB = 30
+            # ** CHANGED ** Updated the max file size variable to 200
+            MAX_FILE_SIZE_MB = 200
             if uploaded_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
                 st.error(f"File is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
-                proceed_with_upload = False # Prevent the upload
+                proceed_with_upload = False
             
             if proceed_with_upload:
                 try:
