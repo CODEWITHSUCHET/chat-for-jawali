@@ -37,11 +37,13 @@ try:
         auth_token=st.secrets["TURSO_DB_AUTH_TOKEN"]
     )
     c = conn.cursor()
+    # Check if 'file_url' column exists and add it if it doesn't
     c.execute("PRAGMA table_info(messages)")
     columns = [info[1] for info in c.fetchall()]
     if 'file_url' not in columns:
         c.execute("ALTER TABLE messages ADD COLUMN file_url TEXT")
         conn.commit()
+    # Create table if it doesn't exist
     c.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,9 +55,7 @@ try:
         )
     ''')
     conn.commit()
-    # (Optional: Add auto-delete function call here if needed)
     st.sidebar.success("Connected to Cloud DB")
-
 except Exception as e:
     st.error(f"Failed to connect to the database: {e}")
     st.stop()
@@ -99,7 +99,7 @@ st.write("")
 with st.form("chat_form", clear_on_submit=True):
     name = st.text_input("Your Name", placeholder="Enter your name...")
     text = st.text_area("Message", placeholder="Type a message (optional)...")
-    uploaded_file = st.file_uploader("Upload a photo or video (optional)", type=['png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi'])
+    uploaded_file = st.file_uploader("Upload a photo or video (Max 30 MB)", type=['png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi'])
     submitted = st.form_submit_button("Send Message")
 
 if submitted:
@@ -107,23 +107,33 @@ if submitted:
         st.warning("Please provide a name and either a message or a file.")
     else:
         file_url = None
+        proceed_with_upload = True
+        
         if uploaded_file is not None:
-            try:
-                import cloudinary
-                import cloudinary.uploader
-                cloudinary.config(
-                    cloud_name=st.secrets["CLOUDINARY_CLOUD_NAME"],
-                    api_key=st.secrets["CLOUDINARY_API_KEY"],
-                    api_secret=st.secrets["CLOUDINARY_API_SECRET"],
-                    secure=True
-                )
-                resource_type = "image" if uploaded_file.type.startswith('image/') else "video"
-                upload_result = cloudinary.uploader.upload(uploaded_file, resource_type=resource_type)
-                file_url = upload_result.get('secure_url')
-            except Exception as e:
-                st.error(f"Error uploading file: {e}")
+            # ** NEW ** Check the file size before uploading
+            MAX_FILE_SIZE_MB = 30
+            if uploaded_file.size > MAX_FILE_SIZE_MB * 1024 * 1024:
+                st.error(f"File is too large. Maximum size is {MAX_FILE_SIZE_MB} MB.")
+                proceed_with_upload = False # Prevent the upload
+            
+            if proceed_with_upload:
+                try:
+                    import cloudinary
+                    import cloudinary.uploader
+                    cloudinary.config(
+                        cloud_name=st.secrets["CLOUDINARY_CLOUD_NAME"],
+                        api_key=st.secrets["CLOUDINARY_API_KEY"],
+                        api_secret=st.secrets["CLOUDINARY_API_SECRET"],
+                        secure=True
+                    )
+                    resource_type = "image" if uploaded_file.type.startswith('image/') else "video"
+                    upload_result = cloudinary.uploader.upload(uploaded_file, resource_type=resource_type)
+                    file_url = upload_result.get('secure_url')
+                except Exception as e:
+                    st.error(f"Error uploading file: {e}")
+                    proceed_with_upload = False
 
-        if file_url or text.strip(): # Proceed only if there's something to send
+        if proceed_with_upload:
             user_ip = get_ip()
             clean_name = bleach.clean(name.strip())
             clean_text = bleach.clean(text.strip())
@@ -136,7 +146,7 @@ if submitted:
 
 st.divider()
 
-# --- Display Messages with new design ---
+# --- Display Messages ---
 st.markdown("### Chat History")
 MESSAGES_PER_PAGE = 25
 offset = st.session_state.page * MESSAGES_PER_PAGE
@@ -152,16 +162,12 @@ else:
         name_for_avatar = urllib.parse.quote_plus(name)
         avatar_url = f"https://ui-avatars.com/api/?name={name_for_avatar}&background=random&color=fff&size=128"
         
-        # ** THIS IS THE CHANGED LOGIC **
-        # We will build the content inside the bubble dynamically
         message_content = ""
-        # Add the text part only if text exists
         if text:
             message_content += f"<div>{text}</div>"
         
-        # Add the media part only if a file_url exists
         if file_url:
-            media_style = "margin-top: 10px;" if text else "" # Add space if text is also present
+            media_style = "margin-top: 10px;" if text else ""
             if any(ext in file_url for ext in ['png', 'jpg', 'jpeg', 'gif']):
                 message_content += f'<div style="{media_style}"><img src="{file_url}" style="max-width: 100%; border-radius: 10px;"></div>'
             elif any(ext in file_url for ext in ['mp4', 'mov', 'avi']):
@@ -178,7 +184,6 @@ else:
         </div>
         """
         st.markdown(chat_html, unsafe_allow_html=True)
-
 
 # --- Pagination & Footer ---
 st.write("") 
