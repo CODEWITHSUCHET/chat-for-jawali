@@ -30,36 +30,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# --- NEW FUNCTION TO UPDATE DATABASE SCHEMA ---
-def update_db_schema(conn):
-    try:
-        c = conn.cursor()
-        # Check if the 'file_url' column exists
-        c.execute("PRAGMA table_info(messages)")
-        columns = [info[1] for info in c.fetchall()]
-        if 'file_url' not in columns:
-            # If it doesn't exist, add it.
-            c.execute("ALTER TABLE messages ADD COLUMN file_url TEXT")
-            conn.commit()
-            print("Database schema updated: 'file_url' column added.")
-    except Exception as e:
-        print(f"Error updating database schema: {e}")
-
-# --- FUNCTION TO DELETE OLD DATA ---
-def delete_old_data(conn):
-    try:
-        cutoff_date = datetime.utcnow() - timedelta(days=15)
-        cutoff_date_str = cutoff_date.strftime('%Y-%m-%d %H:%M:%S')
-        c = conn.cursor()
-        c.execute("DELETE FROM messages WHERE timestamp < ?", (cutoff_date_str,))
-        deleted_rows = c.rowcount
-        conn.commit()
-        if deleted_rows > 0:
-            print(f"Successfully deleted {deleted_rows} old messages.")
-    except Exception as e:
-        print(f"Error deleting old data: {e}")
-
-
 # --- Setup DB ---
 try:
     conn = connect(
@@ -67,9 +37,11 @@ try:
         auth_token=st.secrets["TURSO_DB_AUTH_TOKEN"]
     )
     c = conn.cursor()
-    
-    # --- Update schema and create table on startup ---
-    update_db_schema(conn) # Ensures 'file_url' column exists
+    c.execute("PRAGMA table_info(messages)")
+    columns = [info[1] for info in c.fetchall()]
+    if 'file_url' not in columns:
+        c.execute("ALTER TABLE messages ADD COLUMN file_url TEXT")
+        conn.commit()
     c.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,7 +53,7 @@ try:
         )
     ''')
     conn.commit()
-    delete_old_data(conn) # Deletes messages older than 15 days
+    # (Optional: Add auto-delete function call here if needed)
     st.sidebar.success("Connected to Cloud DB")
 
 except Exception as e:
@@ -127,7 +99,7 @@ st.write("")
 with st.form("chat_form", clear_on_submit=True):
     name = st.text_input("Your Name", placeholder="Enter your name...")
     text = st.text_area("Message", placeholder="Type a message (optional)...")
-    uploaded_file = st.file_uploader("Upload a photo or video (optional)", type=['png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov'])
+    uploaded_file = st.file_uploader("Upload a photo or video (optional)", type=['png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi'])
     submitted = st.form_submit_button("Send Message")
 
 if submitted:
@@ -148,23 +120,23 @@ if submitted:
                 resource_type = "image" if uploaded_file.type.startswith('image/') else "video"
                 upload_result = cloudinary.uploader.upload(uploaded_file, resource_type=resource_type)
                 file_url = upload_result.get('secure_url')
-                st.success("File uploaded successfully!")
             except Exception as e:
-                st.error(f"Error uploading file. Is Cloudinary configured? Error: {e}")
+                st.error(f"Error uploading file: {e}")
 
-        user_ip = get_ip()
-        clean_name = bleach.clean(name.strip())
-        clean_text = bleach.clean(text.strip())
-        timestamp = get_current_ist_time().strftime('%Y-%m-%d %H:%M:%S')
-        
-        c.execute("INSERT INTO messages (name, text, timestamp, ip, file_url) VALUES (?, ?, ?, ?, ?)",
-                      (clean_name, clean_text, timestamp, user_ip, file_url))
-        conn.commit()
-        st.rerun()
+        if file_url or text.strip(): # Proceed only if there's something to send
+            user_ip = get_ip()
+            clean_name = bleach.clean(name.strip())
+            clean_text = bleach.clean(text.strip())
+            timestamp = get_current_ist_time().strftime('%Y-%m-%d %H:%M:%S')
+            
+            c.execute("INSERT INTO messages (name, text, timestamp, ip, file_url) VALUES (?, ?, ?, ?, ?)",
+                          (clean_name, clean_text, timestamp, user_ip, file_url))
+            conn.commit()
+            st.rerun()
 
 st.divider()
 
-# --- Display Messages ---
+# --- Display Messages with new design ---
 st.markdown("### Chat History")
 MESSAGES_PER_PAGE = 25
 offset = st.session_state.page * MESSAGES_PER_PAGE
@@ -180,25 +152,33 @@ else:
         name_for_avatar = urllib.parse.quote_plus(name)
         avatar_url = f"https://ui-avatars.com/api/?name={name_for_avatar}&background=random&color=fff&size=128"
         
-        media_html = ""
-        if file_url:
-            if any(ext in file_url for ext in ['png', 'jpg', 'jpeg', 'gif']):
-                media_html = f'<img src="{file_url}" style="max-width: 100%; border-radius: 10px;">'
-            elif any(ext in file_url for ext in ['mp4', 'mov']):
-                media_html = f'<video controls style="max-width: 100%; border-radius: 10px;"><source src="{file_url}" type="video/mp4"></video>'
+        # ** THIS IS THE CHANGED LOGIC **
+        # We will build the content inside the bubble dynamically
+        message_content = ""
+        # Add the text part only if text exists
+        if text:
+            message_content += f"<div>{text}</div>"
         
+        # Add the media part only if a file_url exists
+        if file_url:
+            media_style = "margin-top: 10px;" if text else "" # Add space if text is also present
+            if any(ext in file_url for ext in ['png', 'jpg', 'jpeg', 'gif']):
+                message_content += f'<div style="{media_style}"><img src="{file_url}" style="max-width: 100%; border-radius: 10px;"></div>'
+            elif any(ext in file_url for ext in ['mp4', 'mov', 'avi']):
+                message_content += f'<div style="{media_style}"><video controls style="max-width: 100%; border-radius: 10px;"><source src="{file_url}"></video></div>'
+
         chat_html = f"""
         <div class="chat-row">
             <img src="{avatar_url}" class="chat-avatar">
             <div class="chat-bubble">
                 <div class="chat-name">{name}</div>
-                <div>{text}</div>
-                {media_html}
+                {message_content}
                 <div class="chat-timestamp">{timestamp}</div>
             </div>
         </div>
         """
         st.markdown(chat_html, unsafe_allow_html=True)
+
 
 # --- Pagination & Footer ---
 st.write("") 
